@@ -22,6 +22,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
         run: |
+          # release 由 Windows CI 在打 tag 时创建(只带 exe),published 事件
+          # 即刻触发本工作流;mac 的 dmg 是之后本地构建手动上传的——这里
+          # 轮询等待 dmg 出现(最长 60 分钟),否则同步必然抢跑失败
+          for i in $(seq 1 30); do
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+                 --json assets -q '.assets[].name' | grep -qx 'LingualCompanion.dmg'; then
+              break
+            fi
+            echo "dmg not attached yet (attempt $i/30), waiting 2min"
+            sleep 120
+          done
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
             --pattern 'LingualCompanion.dmg' --dir assets
           ls -l assets/
